@@ -31,7 +31,7 @@ private val drawerItems = listOf(
     // botón de Chat (abrirá el chat con un miembro por defecto, ej: 1)
     DrawerDestination(Routes.chat(1), "Chat", "💬"),
     DrawerDestination(Routes.PROFILE, "Perfil", "👤"),
-    DrawerDestination("settings", "Ajustes del Hogar", "⚙️") // TODO
+    DrawerDestination(Routes.SETTINGS, "Ajustes del Hogar", "⚙️")
 )
 
 @Composable

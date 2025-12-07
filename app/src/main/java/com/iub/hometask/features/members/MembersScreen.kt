@@ -1,5 +1,4 @@
 package com.iub.hometask.features.members
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +19,8 @@ import com.iub.hometask.ui.theme.TextPrimary
 @Composable
 fun MembersScreen(
     onBackClick: () -> Unit,
-    onNavigateBottom: (String) -> Unit
+    onNavigateBottom: (String) -> Unit,
+    onChatClick: (Int) -> Unit = {}
 ) {
     val currentRoute = Routes.MEMBERS
     val members = MockMembersRepository.members
@@ -63,7 +63,8 @@ fun MembersScreen(
             members.forEach { member ->
                 MemberListItem(
                     member = member,
-                    onEditClick = { /* TODO: editar miembro */ }
+                    onEditClick = { /*  editar miembro */ },
+                    onChatClick = { onChatClick(member.id) }
                 )
             }
 

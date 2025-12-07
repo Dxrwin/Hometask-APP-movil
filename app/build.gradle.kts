@@ -40,10 +40,13 @@ android {
 }
 
 dependencies {
-    // Layouts básicos: Column, Row, Box, etc.
-    //implementation(libs.androidx.compose.foundation)
-
-// Animations (incluye AnimatedContentScope, que aparece en la firma de composable)
+    // Retrofit
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    // Corutinas (ya las tienes, pero asegúrate)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // ViewModel
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
     //implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -60,6 +63,7 @@ dependencies {
     implementation(libs.androidx.ui)
     implementation(libs.androidx.compose.foundation.layout)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.foundation)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

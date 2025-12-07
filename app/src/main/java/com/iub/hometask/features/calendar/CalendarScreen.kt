@@ -1,5 +1,4 @@
 package com.iub.hometask.features.calendar
-
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -16,7 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.iub.hometask.data.mock.MockEventsRepository
-import com.iub.hometask.data.mock.MockEventsRepository.events
 import com.iub.hometask.data.mock.MockMembersRepository
 import com.iub.hometask.data.mock.MockTasksRepository
 import com.iub.hometask.data.mock.TaskCategory
@@ -47,15 +45,15 @@ fun CalendarScreen(
         mutableStateMapOf<LocalDate, MutableList<CalendarUiEvent>>()
     }
 
-    // --- LÓGICA DE CARGA Y UNIFICACIÓN DE DATOS ---
+    // --- LÓGICA DE CARGA Y  DE DATOS ---
     LaunchedEffect(Unit) {
-        // Limpiamos para evitar duplicados si recompone
+
         eventsByDate.clear()
 
         val today = LocalDate.now()
         val tomorrow = today.plusDays(1)
 
-        // 1. CARGAR TAREAS (Desde MockTasksRepository)
+        // 1. CARGAR TAREAS Desde MockTasksRepository
         // Para efectos de DEMO, asignaremos tareas impares a HOY y pares a MAÑANA
         MockTasksRepository.tasks.forEach { task ->
             val targetDate = if (task.id % 2 != 0) today else tomorrow
@@ -63,13 +61,13 @@ fun CalendarScreen(
             // Determinamos el color visual según la categoría
             val color = when (task.category) {
                 TaskCategory.COCINA -> CalendarEventColor.YELLOW
-                TaskCategory.LIMPIEZA -> CalendarEventColor.GREEN // Usamos Green para limpieza
+                TaskCategory.LIMPIEZA -> CalendarEventColor.GREEN
                 TaskCategory.JARDIN -> CalendarEventColor.GREEN
             }
 
-            // Convertimos HomeTask -> CalendarUiEvent
+
             val uiEvent = CalendarUiEvent(
-                id = task.id, // Mantenemos ID original (ej: 1, 2, 3) -> < 100 es Tarea
+                id = task.id,
                 title = task.title,
                 description = task.description,
                 timeLabel = task.dueTime.toString(),
@@ -87,14 +85,14 @@ fun CalendarScreen(
             list.add(uiEvent)
         }
 
-        // 2. CARGAR EVENTOS (Desde MockEventsRepository)
-        // Para la DEMO, ponemos el evento 100 HOY y el 101 MAÑANA
+        // 2. CARGAR EVENTOS Desde MockEventsRepository
+        //
         MockEventsRepository.events.forEach { event ->
             val targetDate = if (event.id == 100) today else tomorrow
 
             // Convertimos HomeEvent -> CalendarUiEvent
             val uiEvent = CalendarUiEvent(
-                id = event.id, // ID original (ej: 100, 101) -> >= 100 es Evento
+                id = event.id,
                 title = event.title,
                 description = event.description,
                 timeLabel = event.timeLabel,
@@ -104,7 +102,7 @@ fun CalendarScreen(
                         it
                     )
                 },
-                color = event.color // Usamos el color definido en el evento (Purple/Yellow)
+                color = event.color
             )
 
             val list = eventsByDate.getOrPut(targetDate) { mutableListOf() }
@@ -112,8 +110,8 @@ fun CalendarScreen(
         }
     }
 
-    // Formateadores de fecha para la UI
-    val monthFormatter = DateTimeFormatter.ofPattern("LLLL yyyy", Locale("es", "ES"))
+    //
+    val monthFormatter = DateTimeFormatter.ofPattern("LLLL yyyy", Locale.forLanguageTag("es-ES"))
     val monthLabel = selectedDate.format(monthFormatter).replaceFirstChar { it.uppercase() }
 
     // Obtener la lista para el día seleccionado
@@ -163,8 +161,7 @@ fun CalendarScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            //@OptIn(ExperimentalSharedTransitionApi::class)
-            //@Composable
+
             with(sharedTransitionScope) {
                 CalendarDayView(
                     date = selectedDate,
@@ -176,7 +173,7 @@ fun CalendarScreen(
                 {
                     val todayEvents = eventsByDate[selectedDate] ?: emptyList()
                     val formatter =
-                        DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale("es", "ES"))
+                        DateTimeFormatter.ofPattern("EEEE, d 'de' MMMM", Locale.forLanguageTag("es-ES"))
                     val dateText = selectedDate.format(formatter).replaceFirstChar { it.uppercase() }
 
                     Column(
@@ -211,13 +208,11 @@ fun CalendarScreen(
                             // itemsIndexed permite la animación de entrada en cascada
                             itemsIndexed(todayEvents) { index, event ->
 
-                                // --- LÓGICA DE CLAVES PARA HERO TRANSITION ---
-                                // Si el ID < 100 es Tarea, si es >= 100 es Evento (Según tu lógica de Mocks)
                                 val heroKey =
                                     if (event.id < 100) "task-${event.id}" else "event-${event.id}"
 
                                 Box(
-                                    modifier = Modifier.animateEnter(index) // Efecto Cascada (Staggered)
+                                    modifier = Modifier.animateEnter(index) // Efecto Cascada
                                 ) {
                                     CalendarEventCard(
                                         event = event,

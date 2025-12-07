@@ -25,14 +25,14 @@ import com.iub.hometask.ui.theme.TextPrimary
 fun EventDetailsScreen(
     eventId: Int,
     onBackClick: () -> Unit,
-    // Scopes para Animación Hero
+    //para Animación Hero
     animatedVisibilityScope: AnimatedVisibilityScope,
     sharedTransitionScope: SharedTransitionScope
 ) {
     // 1. Obtener datos dinámicos
     val event = MockEventsRepository.getEventById(eventId)
 
-    // Si no existe (error raro), mostrar placeholder o volver
+    // Si no existe  mostrar placeholder o volver
     if (event == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Evento no encontrado", color = TextPrimary)
@@ -100,7 +100,7 @@ fun EventDetailsScreen(
                 // 4. Tareas asociadas (Checkboxes simples)
                 Text("Tareas rápidas", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                // Aquí podrías añadir una lista simple de checkboxes si el evento tiene tareas
+                // añadir una lista simple de checkboxes si el evento tiene tareas
                 // Por ahora un placeholder visual
                 SatisfyingCheckboxItem(checked = false, onCheckedChange = {}, label = "Traer bebidas")
                 SatisfyingCheckboxItem(checked = true, onCheckedChange = {}, label = "Confirmar asistencia")

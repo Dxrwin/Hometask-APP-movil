@@ -30,7 +30,7 @@ fun LoadingScreen(
 ) {
     // Timeout de unos segundos
     LaunchedEffect(Unit) {
-        delay(2500) // ~2.5s
+        delay(2500) // 2.5s
         onFinished()
     }
 
@@ -148,7 +148,7 @@ fun LoadingScreen(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                // TODO: aquí va el icono animado del logo (ej. Icon(Icons.Outlined.Home))
+                // aquí va el icono animado del logo (ej. Icon(Icons.Outlined.Home))
             }
 
             // --- Textos ---

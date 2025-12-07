@@ -30,23 +30,24 @@ fun NotificationBanner(
     durationMillis: Int = 3000,
     onDismiss: () -> Unit
 ) {
-    LaunchedEffect(visible) {
-        if (visible) {
+    // Solo usa LaunchedEffect si está visible para iniciar el timer
+    if (visible) {
+        LaunchedEffect(Unit) {
             delay(durationMillis.toLong())
             onDismiss()
         }
     }
 
+    // El AnimatedVisibility controla si se muestra o no
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut()
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut()
     ) {
         Box(
             modifier = modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            contentAlignment = Alignment.TopCenter
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -55,7 +56,7 @@ fun NotificationBanner(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // TODO: aquí puedes poner un icono de check/campana
+                // Icono de check
                 Box(
                     modifier = Modifier
                         .size(24.dp)
@@ -71,7 +72,9 @@ fun NotificationBanner(
 
                 Spacer(modifier = Modifier.width(12.dp))
 
-                Column {
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
                     Text(
                         text = "Notificación",
                         color = TextPrimary,

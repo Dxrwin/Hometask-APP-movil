@@ -6,8 +6,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.iub.hometask.data.mock.MockMembersRepository
@@ -27,21 +25,16 @@ fun TasksScreen(
     val currentRoute = Routes.TASKS
     val members = MockMembersRepository.members
 
-    var selectedCategory by remember { mutableStateOf<TaskCategory?>(null) }
-
-    val pendingTasks = remember(selectedCategory) {
-        MockTasksRepository.getPendingTasks(selectedCategory)
-    }
-    val completedTasks = remember(selectedCategory) {
-        MockTasksRepository.getCompletedTasks(selectedCategory)
-    }
+    // Filtramos por categorías null para mostrar TODAS inicialmente
+    // (Podrías agregar los chips de filtro arriba si quieres mantenerlos,
+    // pero en la imagen de referencia no se ven chips, así que los quité para ser fiel al diseño).
+    val pendingTasks = MockTasksRepository.getPendingTasks(null)
+    val completedTasks = MockTasksRepository.getCompletedTasks(null)
 
     Scaffold(
         containerColor = BackgroundDark,
         topBar = {
-            TasksTopBar(
-                onAddTaskClick = onAddTaskClick
-            )
+            TasksTopBar(onAddTaskClick = onAddTaskClick)
         },
         bottomBar = {
             HomeBottomNavigationBar(
@@ -51,9 +44,7 @@ fun TasksScreen(
         },
         floatingActionButton = {
             PrimaryFab {
-                // aquí puedes navegar directo al asistente
-                onNavigateBottom(Routes.PANEL) // si ahí ya llamas a ASSISTANT
-                // o pasa un callback onOpenAssistantChat similar al de PanelScreen
+                // Acción del robot
             }
         }
     ) { innerPadding ->
@@ -62,35 +53,31 @@ fun TasksScreen(
                 .fillMaxSize()
                 .background(BackgroundDark)
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            TaskCategoryFilterRow(
-                selectedCategory = selectedCategory,
-                onCategorySelected = { selectedCategory = it }
-            )
+            // 1. CLASIFICACIÓN (Tarjetas Rojas/Amarillas)
+            TaskClassificationSection()
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // 2. CARRUSEL MIEMBROS
+            MembersCarousel(members = members)
 
-            TasksSectionCard(
-                title = "Pendientes",
+            // 3. TODAS LAS TAREAS (Pendientes)
+            TaskListSection(
+                title = "Todas las Tareas",
                 tasks = pendingTasks,
                 members = members,
-                onTaskClick = { task ->
-                    onTaskSelected(task)
-                }
+                onTaskClick = onTaskSelected
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TasksSectionCard(
+            // 4. COMPLETADAS
+            TaskListSection(
                 title = "Completadas",
                 tasks = completedTasks,
                 members = members,
-                onTaskClick = { task ->
-                    onTaskSelected(task)
-                }
+                onTaskClick = onTaskSelected
             )
 
             Spacer(modifier = Modifier.height(80.dp))

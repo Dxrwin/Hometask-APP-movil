@@ -50,13 +50,15 @@ fun MembersTopBar(
 @Composable
 fun MemberListItem(
     member: Member,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onChatClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(CardDark, RoundedCornerShape(16.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .clickable { onChatClick() },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
