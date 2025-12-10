@@ -75,20 +75,22 @@ class LoginViewModel(
     }
 
 
-    // --- FACTORY (ESTO EVITA QUE LA APP SE CIERRE) ---
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                // 1. Obtenemos contexto
                 val app = (this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as Application)
+                val context = app.applicationContext
 
-                // 2. Creamos dependencias manualmente
-                val api = RetrofitClient.authService
-                val session = SessionManager(app.applicationContext)
-                val repo = AuthRepositoryImpl(api, session)
+                // CORRECCIÓN AQUÍ:
+                // Antes: val api = RetrofitClient.authService
+                // Ahora: Usamos la función getAuthService pasando el contexto
+                val api = RetrofitClient.getAuthService(context)
 
-                // 3. Devolvemos el ViewModel listo
-                LoginViewModel(repo)
+                val sessionManager = SessionManager(context)
+                val repository = AuthRepositoryImpl(api, sessionManager)
+
+                LoginViewModel(repository)
             }
         }
     }

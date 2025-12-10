@@ -1,130 +1,323 @@
 package com.iub.hometask.features.chat
+
 import android.net.Uri
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.iub.hometask.data.mock.Member
-import com.iub.hometask.data.mock.MockReplies
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.iub.hometask.data.repository.ChatMessage
+import com.iub.hometask.data.repository.MemberUiModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.iub.hometask.navigation.Routes
-import com.iub.hometask.ui.components.*
-import com.iub.hometask.ui.theme.BackgroundDark
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import com.iub.hometask.utils.UriUtils
 
 
 
+private val DarkBackground = Color(0xFF121212)
+private val CardBackground = Color(0xFF1E1E1E)
+private val MyMessageColor = Color(0xFF005c4b) // Verde oscuro tipo WhatsApp
+private val OtherMessageColor = Color(0xFF202c33)
+private val TextWhite = Color(0xFFEEEEEE)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatScreen(
-    member: Member,
+    member: MemberUiModel,
     onBackClick: () -> Unit,
-    onNavigateBottom: (String) -> Unit
+    onNavigateBottom: (String) -> Unit,
+    navController: androidx.navigation.NavController,
+    viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
 ) {
-    val currentRoute = Routes.MEMBERS
-    val scope = rememberCoroutineScope()
-
-    val attachUri = remember { mutableStateOf<Uri?>(null) }
-    val messageText = remember { mutableStateOf("") }
-
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessageUi(
-                id = 1,
-                author = member.name,
-                text = "¡Hola! ¿Podrías sacar la basura cuando llegues a casa?",
-                time = "10:30 AM",
-                isMe = false
-            ),
-            ChatMessageUi(
-                id = 2,
-                author = "Tú",
-                text = "Claro, sin problema. Llego en unos 20 minutos.",
-                time = "10:32 AM",
-                isMe = true
-            ),
-            ChatMessageUi(
-                id = 3,
-                author = member.name,
-                text = "Perfecto, ¡gracias!",
-                time = "10:33 AM",
-                isMe = false
-            )
-        )
+    val context = LocalContext.current
+    val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
+    val capturedImageFlow = remember(navController.currentBackStackEntry) {
+        navController.currentBackStackEntry
+            ?.savedStateHandle
+            ?.getStateFlow<Uri?>("captured_image_uri", null)
     }
 
-    val attachLauncher = rememberLauncherForActivityResult(
+    val capturedImageState = capturedImageFlow?.collectAsState() ?: remember { mutableStateOf(null)}
+    val capturedImageUri by remember { derivedStateOf { capturedImageState.value } }
+    val uiState by viewModel.messagesState.collectAsState()
+    val messageText = remember { mutableStateOf("") }
+
+    val gallerySelectedUri by navController.currentBackStackEntry
+        ?.savedStateHandle
+        ?.getStateFlow<Uri?>("gallery_selected_uri", null)
+        ?.collectAsState()
+        ?: remember { mutableStateOf(null) }
+
+    // Lógica para subir la foto cuando cambia la selección
+    LaunchedEffect(gallerySelectedUri) {
+        gallerySelectedUri?.let { uri ->
+            viewModel.uploadAndSendImage(uri, context)
+            // Limpiamos el estado para no reenviar si rotas la pantalla
+            navController.currentBackStackEntry
+                ?.savedStateHandle
+                ?.remove<Uri>("gallery_selected_uri")
+        }
+    }
+
+
+
+
+    // --- LÓGICA DE CÁMARA Y GALERÍA ---
+
+    LaunchedEffect(gallerySelectedUri) {
+        gallerySelectedUri?.let { uri ->
+            viewModel.uploadAndSendImage(uri, context)
+            // Limpiar estado
+            navController.currentBackStackEntry?.savedStateHandle?.remove<Uri>("gallery_selected_uri")
+        }
+    }
+
+    LaunchedEffect(capturedImageUri) {
+        capturedImageUri?.let { uri ->
+            viewModel.uploadAndSendImage(uri, context)
+            // Limpiamos para no reenviar si rota la pantalla
+            savedStateHandle?.remove<Uri>("captured_image_uri")
+        }
+    }
+
+    // 1. Estado para guardar la URI temporal de la foto que vamos a tomar
+    var tempPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    // 2. Launcher de GALERÍA (Seleccionar foto)
+    val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        attachUri.value = uri
+    ) { uri: Uri? ->
+        // Si el usuario seleccionó algo, lo enviamos
+        uri?.let { viewModel.uploadAndSendImage(it, context) }
+    }
+
+    // 3. Launcher de CÁMARA (Tomar foto)
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && tempPhotoUri != null) {
+            // Si la foto se tomó bien, la enviamos usando la URI temporal
+            viewModel.uploadAndSendImage(tempPhotoUri!!, context)
+        }
+    }
+
+    // 4. Gestión de Permiso de Cámara
+    val cameraPermissionState = rememberPermissionState(android.Manifest.permission.CAMERA)
+
+    // Función auxiliar para iniciar el proceso de cámara
+    fun launchCamera() {
+        if (cameraPermissionState.status.isGranted) {
+            // A. Crear archivo temporal
+            val file = UriUtils.createTempImageFile(context)
+            // B. Obtener URI segura
+            val uri = UriUtils.getUriForFile(context, file)
+            tempPhotoUri = uri
+            // C. Lanza la cámara
+            cameraLauncher.launch(uri)
+        } else {
+            // Si no hay permiso, pedirlo
+            cameraPermissionState.launchPermissionRequest()
+        }
+    }
+
+    // Cargar mensajes al entrar
+    LaunchedEffect(member.id) {
+        // CORRECCIÓN 2: Llamamos a 'loadChatData' que es como se llama en el VM ahora
+        viewModel.loadChatData(member.id)
     }
 
     Scaffold(
-        containerColor = BackgroundDark,
+        containerColor = DarkBackground,
         topBar = {
-            ChatTopBar(
-                memberName = member.name,
-                onBackClick = onBackClick
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Avatar Pequeño
+                        if (member.imageUrl != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(member.imageUrl).crossfade(true).build(),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp).clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Icon(Icons.Default.Person, null, tint = TextWhite)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(member.name, color = TextWhite)
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBackClick) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver", tint = TextWhite)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
         },
         bottomBar = {
-            HomeBottomNavigationBar(
-                currentRoute = currentRoute,
-                onItemSelected = onNavigateBottom
-            )
-        }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(BackgroundDark)
-                .padding(innerPadding)
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-        ) {
-            ChatMessageList(
-                messages = messages,
+            // Barra de Input
+            Row(
                 modifier = Modifier
-                    .weight(1f)
                     .fillMaxWidth()
-            )
+                    .background(CardBackground)
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
 
-            Spacer(modifier = Modifier.height(8.dp))
+                // Botón CÁMARA
+                IconButton(onClick = { launchCamera() },
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Icon(Icons.Default.CameraAlt, "Cámara", tint = Color.Gray)
+                }
 
-            ChatInputBar(
-                textState = messageText,
-                onAttachClick = { attachLauncher.launch("image/*") },
-                onSendClick = {
-                    val text = messageText.value.trim()
-                    if (text.isNotEmpty() || attachUri.value != null) {
-                        val myMessage = ChatMessageUi(
-                            id = messages.size + 1,
-                            author = "Tú",
-                            text = if (text.isEmpty()) "(Imagen adjunta)" else text,
-                            time = "Ahora",
-                            isMe = true,
-                            imageUri = attachUri.value
-                        )
-                        messages.add(myMessage)
+                // Botón GALERÍA
+                IconButton(onClick = { navController.navigate(Routes.GALLERY) },
+                    modifier = Modifier.padding(bottom = 4.dp)
+                    ) {
+                    Icon(Icons.Default.Image, "Galería", tint = Color.Gray)
+                }
+
+                OutlinedTextField(
+                    value = messageText.value,
+                    onValueChange = { messageText.value = it },
+                    placeholder = { Text("Mensaje...", color = Color.Gray) },
+                    modifier = Modifier.weight(1f),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextWhite,
+                        unfocusedTextColor = TextWhite,
+                        focusedContainerColor = DarkBackground,
+                        unfocusedContainerColor = DarkBackground,
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(24.dp)
+                )
+                // Botón ENVIAR
+                IconButton(
+                    onClick = {
+                        viewModel.sendMessage(messageText.value)
                         messageText.value = ""
-                        attachUri.value = null
-
-                        scope.launch {
-                            delay(1000)
-                            val reply = ChatMessageUi(
-                                id = messages.size + 1,
-                                author = member.name,
-                                text = MockReplies.randomChatReply(),
-                                time = "Ahora",
-                                isMe = false
-                            )
-                            messages.add(reply)
+                    },
+                    modifier = Modifier
+                        .padding(bottom = 4.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .size(48.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    ) { padding ->
+        Box(modifier = Modifier.padding(padding).fillMaxSize()) {
+            when (val state = uiState) {
+                is ChatUiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                is ChatUiState.Error -> Text(state.message, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+                is ChatUiState.Success -> {
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        reverseLayout = true // Para chats es mejor que empiece abajo
+                    ) {
+                        // Invertimos la lista porque reverseLayout=true la muestra al revés
+                        items(state.messages.reversed()) { msg: ChatMessage ->
+                            ChatBubble(msg)
                         }
                     }
                 }
-            )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatBubble(message: ChatMessage) {
+
+    val isMine = message.isMine
+    val alignment = if (isMine) Alignment.CenterEnd else Alignment.CenterStart
+    val bubbleColor = if (isMine) MyMessageColor else OtherMessageColor
+    val shape = if (isMine) RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
+    else RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = if (message.isMine) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (message.isMine) MyMessageColor else OtherMessageColor
+            ),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.widthIn(max = 280.dp)
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
+                // Mostrar Imagen si existe
+                if (message.imageUrl != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(message.imageUrl)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = "Imagen enviada",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                // Hora y Estado
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = try { message.timestamp.takeLast(8) } catch(e:Exception){""},
+                        color = Color.LightGray,
+                        fontSize = 10.sp
+                    )
+                    if (isMine) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.Default.DoneAll,
+                            contentDescription = "Leído",
+                            modifier = Modifier.size(16.dp),
+                            tint = if (message.isRead) Color(0xFF34B7F1) else Color.Gray
+                        )
+                    }
+                }
+            }
+
         }
     }
 }

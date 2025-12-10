@@ -9,39 +9,52 @@ class SessionManager(context: Context) {
     companion object {
         const val KEY_ACCESS_TOKEN = "access_token"
         const val KEY_USER_ROLE_ID = "user_role_id"
+        const val KEY_USER_ID = "user_id"        // <--- NUEVO
+        const val KEY_HOGAR_ID = "hogar_id"      // <--- NUEVO
         const val KEY_TOKEN_TIMESTAMP = "token_timestamp"
     }
 
-    // Guardar sesión tras login exitoso
-    fun saveAuthToken(token: String, roleId: Int) {
+    /**
+     * Guarda toda la información de la sesión en un solo paso.
+     */
+    fun saveSession(token: String, roleId: Int, userId: Int, id_hogar: Int) {
         val editor = prefs.edit()
         editor.putString(KEY_ACCESS_TOKEN, token)
         editor.putInt(KEY_USER_ROLE_ID, roleId)
-        editor.putLong(KEY_TOKEN_TIMESTAMP, System.currentTimeMillis()) // Para controlar los 30 min
+        editor.putInt(KEY_USER_ID, userId)       // <--- NUEVO
+        editor.putInt(KEY_HOGAR_ID, id_hogar)     // <--- NUEVO
+        editor.putLong(KEY_TOKEN_TIMESTAMP, System.currentTimeMillis())
         editor.apply()
     }
 
-    // Obtener Token para las peticiones
     fun fetchAuthToken(): String? {
         return prefs.getString(KEY_ACCESS_TOKEN, null)
     }
 
-    // Obtener Rol para saber qué pantalla mostrar
     fun getUserRole(): Int {
-        return prefs.getInt(KEY_USER_ROLE_ID, -1) // -1 si no hay rol
+        return prefs.getInt(KEY_USER_ROLE_ID, -1)
     }
 
-    // Cerrar sesión
+    // Método para obtener el ID del usuario actual (para saber si el mensaje es mío)
+    fun getUserId(): Int {
+        return prefs.getInt(KEY_USER_ID, -1)
+    }
+
+    // Método para obtener el Hogar (necesario para enviar mensajes)
+    fun getHogarId(): Int {
+        return prefs.getInt(KEY_HOGAR_ID, -1)
+    }
+
     fun clearSession() {
         val editor = prefs.edit()
         editor.clear()
         editor.apply()
     }
 
-    // Validar si el token sigue "vivo" (opcional, lógica simple de 30 min)
     fun isTokenValid(): Boolean {
         val timestamp = prefs.getLong(KEY_TOKEN_TIMESTAMP, 0)
         val currentTime = System.currentTimeMillis()
+        // 30 minutos de validez
         val thirtyMinutesInMillis = 30 * 60 * 1000
         return (currentTime - timestamp) < thirtyMinutesInMillis
     }

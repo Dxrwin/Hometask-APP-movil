@@ -19,9 +19,15 @@ class AuthRepositoryImpl(
 
             if (response.isSuccessful && response.body() != null) {
                 val data = response.body()!!
-                // LOGICA: Guardar Token y Rol en Cache
-                val roleId = data.rol?.id ?: 2 // Default a 2 (Miembro) si viene null
-                sessionManager.saveAuthToken(data.accessToken, roleId)
+                val roleId = data.rol?.id ?: 2
+
+                // ACTUALIZACIÓN: Guardamos ID de miembro y Hogar también
+                sessionManager.saveSession(
+                    token = data.accessToken,
+                    roleId = roleId,
+                    userId = data.idMiembro, // Viene del TokenResponseDto
+                    id_hogar = data.idhogar   // Viene del TokenResponseDto
+                )
 
                 Result.success(true)
             } else {
@@ -33,18 +39,27 @@ class AuthRepositoryImpl(
     }
 
     // REGISTRO: Solo llama a la API, NO guarda sesión
-    override suspend fun registro(nombre: String, correo: String, pass: String): Result<Boolean> {
+    override suspend fun registro(
+        nombre: String,
+        correo: String,
+        pass: String,
+        telefono: String,
+        idRol: Int,
+        idHogar: Int
+    ): Result<Boolean> {
         return try {
             val request = RegisterRequestDto(
                 nombreCompleto = nombre,
                 correoElectronico = correo,
                 contrasena = pass,
-                idRol = 2 // Por defecto registramos miembros, el admin se crea manual o por DB
+                telefono = telefono,
+                idRol = idRol,
+                idHogar = idHogar
             )
+            // ... llamada a la api (igual que antes) ...
             val response = api.registrar(request)
 
             if (response.isSuccessful) {
-                // LOGICA: No guardamos nada. El usuario debe ir al Login manualmente.
                 Result.success(true)
             } else {
                 Result.failure(Exception("Error Registro: ${response.code()}"))

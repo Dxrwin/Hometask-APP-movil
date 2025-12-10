@@ -3,6 +3,7 @@ package com.iub.hometask.navigation
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -10,15 +11,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 //import com.iub.hometask.data.mock.HomeTask
 import com.iub.hometask.data.mock.MockMembersRepository
+import com.iub.hometask.data.repository.MemberUiModel
 import com.iub.hometask.features.auth.Login.LoginScreen
 import com.iub.hometask.features.auth.Signup.SignUpScreen
 import com.iub.hometask.features.auth.Welcome.WelcomeScreen
 import com.iub.hometask.features.calendar.CalendarScreen
 import com.iub.hometask.features.calendar.EventDetailsScreen
+import com.iub.hometask.features.chat.CameraScreen
 import com.iub.hometask.features.chat.ChatScreen
 import com.iub.hometask.features.chat.assistant.AssistantChatScreen
 import com.iub.hometask.features.common.SimplePlaceholderScreen
+import com.iub.hometask.features.gallery.GalleryScreen
 import com.iub.hometask.features.loading.LoadingScreen
+import com.iub.hometask.features.members.AddMemberScreen
 import com.iub.hometask.features.members.MembersScreen
 import com.iub.hometask.features.panel.PanelNotificationType
 import com.iub.hometask.features.panel.PanelScreen
@@ -39,6 +44,8 @@ object Routes {
     const val TASKS = "tasks"
     const val CALENDAR = "calendar"
     const val MEMBERS = "members"
+
+    const val ADD_MEMBER = "add_member" // <--- NUEVA RUTA
     const val PROFILE = "profile"
     const val SETTINGS = "settings"
 
@@ -50,15 +57,19 @@ object Routes {
     const val PANEL_FROM_LOGIN = "panel_from_login"
     const val PANEL_FROM_REGISTER = "panel_from_register"
     const val CHAT = "chat/{memberId}"
-    const val LOADING = "loading/{target}"
+    //const val LOADING = "loading/{target}"
     const val TASK_DETAILS = "task_details/{taskId}"
     const val EVENT_DETAILS = "event_details/{eventId}"
+
+    const val CAMERA = "camera"
+
+    const val GALLERY = "gallery"
 
     // Helpers para construir rutas con parámetros
     fun taskDetails(taskId: Int) = "task_details/$taskId"
     fun eventDetails(eventId: Int) = "event_details/$eventId"
     fun chat(memberId: Int) = "chat/$memberId"
-    fun loading(target: String) = "loading/$target"
+    //fun loading(target: String) = "loading/$target"
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -71,7 +82,7 @@ fun HomeTaskNavGraph(navController: NavHostController) {
             composable(route = Routes.WELCOME) {
                 WelcomeScreen(
                     onLoginClick = { navController.navigate(Routes.LOGIN) },
-                    onSignUpClick = { navController.navigate(Routes.loading(target = Routes.SIGN_UP)) }
+                    onSignUpClick = { navController.navigate(Routes.SIGN_UP) }
                 )
             }
 
@@ -79,17 +90,17 @@ fun HomeTaskNavGraph(navController: NavHostController) {
                 LoginScreen(
                     // Lógica ROL 1 (Admin) -> Panel Completo
                     onNavigateToAdminPanel = {
-                        navController.navigate(Routes.loading(target = Routes.PANEL)) {
+                        navController.navigate(Routes.PANEL) {
                             popUpTo(Routes.WELCOME) { inclusive = true }
                         }
                     },
                     // Lógica ROL 2 (Miembro) -> Panel Limitado
                     onNavigateToMemberPanel = {
-                        navController.navigate(Routes.loading(target = Routes.MEMBER_PANEL)) {
+                        navController.navigate(Routes.MEMBER_PANEL) {
                             popUpTo(Routes.WELCOME) { inclusive = true }
                         }
                     },
-                    onNavigateToSignUp = { navController.navigate(Routes.loading(target = Routes.SIGN_UP)) },
+                    onNavigateToSignUp = { navController.navigate(Routes.SIGN_UP) },
                     onBackClick = { navController.popBackStack() }
                 )
             }
@@ -101,26 +112,10 @@ fun HomeTaskNavGraph(navController: NavHostController) {
                         // Al registrarse, enviamos al Login para obtener token y rol
                         navController.navigate(Routes.LOGIN)
                     },
-                    onNavigateToLogin = { navController.navigate(Routes.loading(Routes.LOGIN)) }
+                    onNavigateToLogin = { navController.navigate(Routes.LOGIN) }
                 )
             }
 
-            // ==================== UTILS ====================
-            composable(
-                route = Routes.LOADING,
-                arguments = listOf(navArgument("target") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val target = backStackEntry.arguments?.getString("target") ?: Routes.PANEL
-                LoadingScreen(
-                    onFinished = {
-                        when (target) {
-                            Routes.LOGIN -> navController.navigate(Routes.LOGIN) { popUpTo(Routes.WELCOME) { inclusive = false } }
-                            Routes.SIGN_UP -> navController.navigate(Routes.SIGN_UP)
-                            else -> navController.navigate(target) { popUpTo(Routes.WELCOME) { inclusive = true } }
-                        }
-                    }
-                )
-            }
 
             // ==================== ADMIN PANEL & FEATURES ====================
 
@@ -236,7 +231,29 @@ fun HomeTaskNavGraph(navController: NavHostController) {
             composable(route = Routes.MEMBERS) {
                 MembersScreen(
                     onBackClick = { navController.popBackStack() },
-                    onNavigateBottom = onNavigateBottomCommon
+                    onNavigateBottom = onNavigateBottomCommon,
+                    onAddMemberClick = { navController.navigate(Routes.ADD_MEMBER) },
+
+                    // 1. Navegar al Perfil del Miembro
+                    onMemberClick = { memberId ->
+                        // Aquí deberías tener una ruta como "profile/{memberId}"
+                        // Por ahora, si usas el perfil propio, puedes redirigir a PROFILE o crear MEMBER_PROFILE
+                        navController.navigate(Routes.PROFILE) // Placeholder
+                    },
+
+                    // 2. Navegar al Chat
+                    onChatClick = { memberId ->
+                        navController.navigate(Routes.chat(memberId))
+                    }
+                )
+            }
+
+            composable(route = Routes.ADD_MEMBER) {
+                AddMemberScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onMemberCreated = {
+                        navController.popBackStack() // Volver a la lista tras crear
+                    }
                 )
             }
 
@@ -280,21 +297,65 @@ fun HomeTaskNavGraph(navController: NavHostController) {
                 )
             }
 
+            // 1. Agregar la pantalla de Cámara
+            composable(route = Routes.CAMERA) {
+                CameraScreen(
+                    onClose = { navController.popBackStack() },
+                    onImageCaptured = { uri ->
+                        // TRUCO: Guardamos la URI en el SavedStateHandle del "BackStackEntry anterior" (el Chat)
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("captured_image_uri", uri)
+
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            composable(route = Routes.GALLERY) {
+                // Necesitamos pasarle el navController y un callback para cuando seleccione una foto
+                // Usaremos el SavedStateHandle para devolver la foto al Chat
+                val context = LocalContext.current
+
+                GalleryScreen(
+                    onBackClick = { navController.popBackStack() },
+                    onImageSelected = { uri ->
+                        // Devolver URI al ChatScreen
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set("gallery_selected_uri", uri)
+
+                        navController.popBackStack()
+                    }
+                )
+            }
+
+            // Ruta Chat debe aceptar ID
             composable(
                 route = Routes.CHAT,
                 arguments = listOf(navArgument("memberId") { type = NavType.IntType })
             ) { backStackEntry ->
                 val memberId = backStackEntry.arguments?.getInt("memberId") ?: 0
-                val member = MockMembersRepository.members.find { it.id == memberId }
-                    ?: MockMembersRepository.members.firstOrNull()
 
-                if (member != null) {
-                    ChatScreen(
-                        member = member,
-                        onBackClick = { navController.popBackStack() },
-                        onNavigateBottom = onNavigateBottomCommon
-                    )
-                }
+                // TRUCO RÁPIDO: Crea un modelo temporal con el ID para pasarlo al ChatScreen
+                // El ChatScreen cargará los mensajes usando ese ID.
+                // Para el nombre y foto, lo ideal sería que el ChatViewModel también cargue "MemberDetails".
+                // Por ahora pondremos un nombre placeholder o pasaremos los argumentos por URL si es posible.
+
+                val tempMember = MemberUiModel(
+                    id = memberId,
+                    name = "Usuario $memberId",
+                    email = "",
+                    roleName = "",
+                    imageUrl = null
+                )
+
+                ChatScreen(
+                    member = tempMember, // El ViewModel se encargará de los mensajes
+                    onBackClick = { navController.popBackStack() },
+                    navController = navController,
+                    onNavigateBottom = onNavigateBottomCommon
+                )
             }
         }
     }

@@ -32,10 +32,17 @@ class SignUpViewModel(
     val uiState: StateFlow<SignUpUiState> = _uiState.asStateFlow()
 
     // 3. Lógica de registro
-    fun registrarse(nombre: String, email: String, pass: String, confirmPass: String) {
-        // Validaciones básicas antes de llamar al backend
+    fun registrarse(
+        nombre: String,
+        email: String,
+        pass: String,
+        telefono: String,
+        confirmPass: String,
+        idRol: Int,   // Nuevo
+        idHogar: Int  // Nuevo
+    ) {
         if (nombre.isBlank() || email.isBlank() || pass.isBlank()) {
-            _uiState.value = SignUpUiState.Error("Por favor completa todos los campos")
+            _uiState.value = SignUpUiState.Error("Completa todos los campos")
             return
         }
 
@@ -44,17 +51,19 @@ class SignUpViewModel(
             return
         }
 
+        if (telefono.isBlank()) {
+            _uiState.value = SignUpUiState.Error("El teléfono es obligatorio")
+            return
+        }
+
         viewModelScope.launch {
             _uiState.value = SignUpUiState.Loading
 
-            // Llamada al repositorio
-            val result = repository.registro(nombre, email, pass)
+            // Pasamos los IDs seleccionados al repositorio
+            val result = repository.registro(nombre, email, pass, telefono, idRol, idHogar)
 
             result.fold(
-                onSuccess = {
-                    // ÉXITO: El usuario debe ir al login, no guardamos token aquí
-                    _uiState.value = SignUpUiState.Success
-                },
+                onSuccess = { _uiState.value = SignUpUiState.Success },
                 onFailure = { error ->
                     _uiState.value = SignUpUiState.Error(error.message ?: "Error desconocido")
                 }
@@ -71,7 +80,7 @@ class SignUpViewModel(
                 val context = application.applicationContext
 
                 // Creamos las dependencias
-                val api = RetrofitClient.authService
+                val api = RetrofitClient.getAuthService(context)
                 val sessionManager = SessionManager(context)
                 val repository = AuthRepositoryImpl(api, sessionManager)
 

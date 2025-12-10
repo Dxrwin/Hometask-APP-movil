@@ -10,6 +10,7 @@ import com.iub.hometask.ui.theme.HomeTaskTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        android.util.Log.e("PRUEBA_LOG", "¡HOLA! SI VES ESTO, EL LOGCAT FUNCIONA")
         super.onCreate(savedInstanceState)
         setContent {
             HomeTaskApp()
