@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
     // ⚠IMPORTANTE: 10.0.2.2 es el "localhost" del emulador de Android Studio.
     // No uses 127.0.0.1 ni localhost.
-    private const val BASE_URL = "http://192.168.2.13:8000/"
+    private const val BASE_URL = "http://192.168.1.40:8000/"
 
     // Variable para guardar el cliente HTTP
     private var retrofit: Retrofit? = null

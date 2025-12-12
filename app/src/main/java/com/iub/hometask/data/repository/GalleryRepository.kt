@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.provider.DocumentsContract
 
 class GalleryRepository(private val context: Context) {
 
@@ -51,4 +52,21 @@ class GalleryRepository(private val context: Context) {
         }
         return@withContext photoList
     }
+
+    // Función para borrar foto física
+    suspend fun deletePhoto(uri: Uri): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val rowsDeleted = context.contentResolver.delete(uri, null, null)
+            return@withContext rowsDeleted > 0
+        } catch (e: SecurityException) {
+            // Requiere permisos especiales en Android 10+ si la foto no es nuestra
+            e.printStackTrace()
+            return@withContext false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext false
+        }
+    }
+
+
 }

@@ -38,6 +38,14 @@ class GalleryViewModel(
         }
     }
 
+    fun deletePhoto(uri: Uri, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.deletePhoto(uri)
+            loadPhotos()
+            onComplete()
+        }
+    }
+
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

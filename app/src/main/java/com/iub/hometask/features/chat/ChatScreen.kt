@@ -1,7 +1,7 @@
 package com.iub.hometask.features.chat
 
 import android.net.Uri
-import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Person
@@ -35,6 +36,7 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.iub.hometask.data.repository.ChatMessage
 import com.iub.hometask.data.repository.MemberUiModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.iub.hometask.data.repository.MessageStatus
 import com.iub.hometask.navigation.Routes
 import com.iub.hometask.utils.UriUtils
 
@@ -55,12 +57,47 @@ fun ChatScreen(
     navController: androidx.navigation.NavController,
     viewModel: ChatViewModel = viewModel(factory = ChatViewModel.Factory)
 ) {
+
+    // --- ESTADOS LOCALES ---
+
+    // Imagen pendiente de envío (Borrador)
+    val pendingImageUri = remember { mutableStateOf<Uri?>(null) }
+
     val context = LocalContext.current
     val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
     val capturedImageFlow = remember(navController.currentBackStackEntry) {
         navController.currentBackStackEntry
             ?.savedStateHandle
             ?.getStateFlow<Uri?>("captured_image_uri", null)
+    }
+
+    val capturedUriState = capturedImageFlow?.collectAsState()
+    val capturedUri = capturedUriState?.value
+
+    LaunchedEffect(capturedUri) {
+        capturedUri?.let { uri ->
+            // EN LUGAR DE ENVIAR, LO PONEMOS EN PREVIEW
+            pendingImageUri.value = uri
+            // Limpiamos el handle para no repetirlo
+            navController.currentBackStackEntry?.savedStateHandle?.remove<Uri>("captured_image_uri")
+        }
+    }
+
+    // 2. Retorno de GALERÍA (Viene de nuestra GalleryScreen)
+    val galleryFlow = remember(navController.currentBackStackEntry) {
+        navController.currentBackStackEntry
+            ?.savedStateHandle
+            ?.getStateFlow<Uri?>("gallery_selected_uri", null)
+    }
+    val galleryUriState = galleryFlow?.collectAsState()
+    val galleryUri = galleryUriState?.value
+
+    LaunchedEffect(galleryUri) {
+        galleryUri?.let { uri ->
+            // EN LUGAR DE ENVIAR, LO PONEMOS EN PREVIEW
+            pendingImageUri.value = uri
+            navController.currentBackStackEntry?.savedStateHandle?.remove<Uri>("gallery_selected_uri")
+        }
     }
 
     val capturedImageState = capturedImageFlow?.collectAsState() ?: remember { mutableStateOf(null)}
@@ -77,7 +114,7 @@ fun ChatScreen(
     // Lógica para subir la foto cuando cambia la selección
     LaunchedEffect(gallerySelectedUri) {
         gallerySelectedUri?.let { uri ->
-            viewModel.uploadAndSendImage(uri, context)
+            viewModel.uploadAndSendImageWithContext(uri, context)
             // Limpiamos el estado para no reenviar si rotas la pantalla
             navController.currentBackStackEntry
                 ?.savedStateHandle
@@ -191,6 +228,33 @@ fun ChatScreen(
                     .padding(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+
+                ChatInputBar(
+                    messageText = messageText.value,
+                    onMessageChange = { messageText.value = it },
+                    pendingImageUri = pendingImageUri.value,
+                    onRemoveImage = { pendingImageUri.value = null }, // Acción Cancelar
+                    onCameraClick = { launchCamera() },
+                    onGalleryClick = { navController.navigate(Routes.GALLERY) },
+                    onSend = {
+                        // LÓGICA DE ENVÍO UNIFICADA
+                        if (pendingImageUri.value != null) {
+                            // Enviar Imagen + Texto
+                            viewModel.uploadAndSendImageWithContext(
+                                uri = pendingImageUri.value!!,
+                                context = context,
+                                caption = messageText.value // Pasamos el texto como comentario
+                            )
+                        } else {
+                            // Solo Texto
+                            viewModel.sendMessage(messageText.value)
+                        }
+
+                        // Limpiar todo después de enviar
+                        messageText.value = ""
+                        pendingImageUri.value = null
+                    }
+                )
 
                 // Botón CÁMARA
                 IconButton(onClick = { launchCamera() },
@@ -308,6 +372,25 @@ fun ChatBubble(message: ChatMessage) {
                     )
                     if (isMine) {
                         Spacer(modifier = Modifier.width(4.dp))
+
+                        when (message.status) {
+                            MessageStatus.SENDING -> {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = TextWhite
+                                )
+                            }
+                            MessageStatus.FAILED -> {
+                                Icon(
+                                    imageVector = Icons.Default.ErrorOutline,
+                                    contentDescription = "Error",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.Red
+                                )
+                            }
+                            MessageStatus.SENT -> {
+
                         Icon(
                             imageVector = Icons.Default.DoneAll,
                             contentDescription = "Leído",
@@ -318,6 +401,123 @@ fun ChatBubble(message: ChatMessage) {
                 }
             }
 
+        }
+    }
+}
+}
+
+}
+
+@Composable
+fun ChatInputBar(
+    messageText: String,
+    onMessageChange: (String) -> Unit,
+    pendingImageUri: Uri?, // <--- Estado de la imagen "en espera"
+    onRemoveImage: () -> Unit, // Cancelar imagen
+    onSend: () -> Unit,
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardBackground) // Color de fondo del área de input
+    ) {
+        // 1. ÁREA DE PREVISUALIZACIÓN (Solo visible si hay imagen)
+        if (pendingImageUri != null) {
+            Box(
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxWidth()
+                    .height(150.dp) // Altura de la previsualización
+                    .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(pendingImageUri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "Previsualización",
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .align(Alignment.Center)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = ContentScale.Fit
+                )
+
+                // Botón CANCELAR (X)
+                IconButton(
+                    onClick = onRemoveImage,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .background(Color.Black.copy(0.6f), CircleShape)
+                        .size(32.dp)
+                        .padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Eliminar adjunto",
+                        tint = Color.White
+                    )
+                }
+            }
+        }
+
+        // 2. FILA DE BOTONES Y TEXTO
+        Row(
+            modifier = Modifier
+                .padding(8.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.Bottom // Alineado abajo para multilínea
+        ) {
+            // Botones Multimedia
+            IconButton(onClick = onCameraClick, modifier = Modifier.padding(bottom = 4.dp)) {
+                Icon(Icons.Default.CameraAlt, "Cámara", tint = Color.Gray)
+            }
+            IconButton(onClick = onGalleryClick, modifier = Modifier.padding(bottom = 4.dp)) {
+                Icon(Icons.Default.Image, "Galería", tint = Color.Gray)
+            }
+
+            // Campo de Texto
+            OutlinedTextField(
+                value = messageText,
+                onValueChange = onMessageChange,
+                placeholder = {
+                    Text(
+                        if (pendingImageUri != null) "Añade un comentario..." else "Mensaje...",
+                        color = Color.Gray
+                    )
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 4.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextWhite,
+                    unfocusedTextColor = TextWhite,
+                    focusedContainerColor = DarkBackground,
+                    unfocusedContainerColor = DarkBackground,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                maxLines = 4
+            )
+
+            // Botón Enviar
+            val canSend = messageText.isNotBlank() || pendingImageUri != null
+            IconButton(
+                onClick = onSend,
+                enabled = canSend,
+                modifier = Modifier
+                    .padding(bottom = 4.dp)
+                    .background(
+                        if (canSend) MaterialTheme.colorScheme.primary else Color.Gray,
+                        CircleShape
+                    )
+                    .size(48.dp)
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = Color.White)
+            }
         }
     }
 }

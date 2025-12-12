@@ -7,20 +7,29 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import java.io.File
+import android.net.Uri
+
+enum class MessageStatus {
+    SENT,     // Enviado y guardado en servidor
+    SENDING,  // Intentando enviar (Spinner)
+    FAILED    // Falló tras los intentos (Icono error)
+}
 
 data class ChatMessage(
-    val id: Int,
+    val id: String,
     val content: String,
-    val isMine: Boolean, // Calculado comparando idRemitente con mi ID
+    val isMine: Boolean,
     val timestamp: String,
     val imageUrl: String?,
-    val isRead: Boolean
+    val isRead: Boolean,
+    val status: MessageStatus = MessageStatus.SENT,
+    val localUri: Uri? = null // Para reintentar la subida
 )
 
 class ChatRepository(
     private val api: ChatApiService,
     private val sessionManager: SessionManager,
-    private val baseUrlStatic: String = "http://192.168.2.13:8000/static/" // TU IP AQUÍ
+    private val baseUrlStatic: String = "http://192.168.1.40:8000/static/avatars/" //
 ) {
 
     // Obtener mi ID guardado en sesión (asumiendo que lo guardaste al login)
@@ -35,12 +44,13 @@ class ChatRepository(
                 val currentUserId = myMemberId
                 val messages = response.body()!!.map { dto ->
                     ChatMessage(
-                        id = dto.id,
+                        id = dto.id.toString(),
                         content = dto.contenido,
                         isMine = dto.idRemitente == currentUserId,
                         timestamp = dto.fechaEnvio,
                         imageUrl = dto.urlImagen?.let { "$baseUrlStatic$it" },
-                        isRead = dto.leido
+                        isRead = dto.leido,
+                        status = MessageStatus.SENT
                     )
                 }
                 Result.success(messages)

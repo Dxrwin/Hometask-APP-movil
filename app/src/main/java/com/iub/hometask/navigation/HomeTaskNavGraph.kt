@@ -298,33 +298,27 @@ fun HomeTaskNavGraph(navController: NavHostController) {
             }
 
             // 1. Agregar la pantalla de Cámara
-            composable(route = Routes.CAMERA) {
+            composable(Routes.CAMERA) {
                 CameraScreen(
                     onClose = { navController.popBackStack() },
                     onImageCaptured = { uri ->
-                        // TRUCO: Guardamos la URI en el SavedStateHandle del "BackStackEntry anterior" (el Chat)
+                        // Guardamos el resultado para el ChatScreen
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set("captured_image_uri", uri)
-
                         navController.popBackStack()
                     }
                 )
             }
 
-            composable(route = Routes.GALLERY) {
-                // Necesitamos pasarle el navController y un callback para cuando seleccione una foto
-                // Usaremos el SavedStateHandle para devolver la foto al Chat
-                val context = LocalContext.current
-
+            composable(Routes.GALLERY) {
                 GalleryScreen(
-                    onBackClick = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStack() },
                     onImageSelected = { uri ->
-                        // Devolver URI al ChatScreen
+                        // Guardamos el resultado para el ChatScreen
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set("gallery_selected_uri", uri)
-
                         navController.popBackStack()
                     }
                 )

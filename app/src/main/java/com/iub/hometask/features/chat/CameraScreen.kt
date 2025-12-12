@@ -2,6 +2,7 @@ package com.iub.hometask.features.chat
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -17,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,36 +30,43 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.iub.hometask.utils.UriUtils
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 @Composable
 fun CameraScreen(
-    onImageCaptured: (Uri) -> Unit, // Callback cuando se toma la foto
+    onImageCaptured: (Uri) -> Unit,
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Estados de CameraX
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
     var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
-    val imageCapture = remember { ImageCapture.Builder().build() }
     val previewView = remember { PreviewView(context) }
 
     // Efecto para vincular la cámara al ciclo de vida
     LaunchedEffect(lensFacing) {
         val cameraProvider = context.getCameraProvider()
-        cameraProvider.unbindAll()
 
-        val preview = Preview.Builder().build()
-        preview.setSurfaceProvider(previewView.surfaceProvider)
+        val preview = Preview.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
+        imageCapture = ImageCapture.Builder()
+            .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+            .build()
 
         val cameraSelector = CameraSelector.Builder()
             .requireLensFacing(lensFacing)
             .build()
 
         try {
+            cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -65,70 +74,73 @@ fun CameraScreen(
                 imageCapture
             )
         } catch (e: Exception) {
-            Toast.makeText(context, "Error iniciando cámara", Toast.LENGTH_SHORT).show()
+            Log.e("CameraScreen", "Error al iniciar cámara", e)
         }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // 1. VISTA PREVIA (CÁMARA EN TIEMPO REAL)
+        // 2. Vista Previa
         AndroidView(
             factory = { previewView },
             modifier = Modifier.fillMaxSize()
         )
 
-        // Botón Cerrar (Arriba Izquierda)
+        // Botón Cerrar
         IconButton(
             onClick = onClose,
             modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
         ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Cerrar", tint = Color.White)
+            Icon(Icons.Default.Close, "Cerrar", tint = Color.White)
         }
 
-        // 2. CONTROLES (ABAJO)
-        Row(
+        // 3. Controles de Cámara
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 50.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(bottom = 32.dp)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Botón vacío para equilibrar
-            Spacer(modifier = Modifier.size(50.dp))
-
-            // 3. BOTÓN DE CAPTURA (Estilo Visual Personalizado)
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .border(4.dp, Color.White, CircleShape)
-                    .clickable {
-                        takePhoto(
-                            context = context,
-                            imageCapture = imageCapture,
-                            onImageSaved = onImageCaptured,
-                            onError = { Toast.makeText(context, "Error: $it", Toast.LENGTH_SHORT).show() }
-                        )
-                    },
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // Botón Cambiar Cámara (Módulo 12)
+                IconButton(
+                    onClick = {
+                        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+                            CameraSelector.LENS_FACING_FRONT
+                        else
+                            CameraSelector.LENS_FACING_BACK
+                    },
+                    modifier = Modifier.size(50.dp)
+                ) {
+                    Icon(Icons.Default.Cameraswitch, "Cambiar", tint = Color.White)
+                }
+
+                // Botón Captura (Módulo 06)
                 Box(
                     modifier = Modifier
-                        .size(60.dp)
+                        .size(80.dp)
+                        .border(4.dp, Color.White, CircleShape)
+                        .padding(8.dp)
                         .background(Color.White, CircleShape)
+                        .clickable {
+                            // 4. Capturar Foto (Módulo 05)
+                            imageCapture?.let { capture ->
+                                takePhoto(context, capture) { file ->
+                                    if (file != null) {
+                                        // Devolver URI al Chat
+                                        onImageCaptured(Uri.fromFile(file))
+                                    }
+                                }
+                            }
+                        }
                 )
-            }
 
-            // Botón Cambiar Cámara
-            IconButton(
-                onClick = {
-                    lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
-                        CameraSelector.LENS_FACING_FRONT
-                    else
-                        CameraSelector.LENS_FACING_BACK
-                },
-                modifier = Modifier.size(50.dp)
-            ) {
-                Icon(Icons.Default.Cameraswitch, "Cambiar Cámara", tint = Color.White)
+                // Espaciador para equilibrar
+                Spacer(modifier = Modifier.size(50.dp))
             }
         }
     }
@@ -138,36 +150,40 @@ fun CameraScreen(
 private fun takePhoto(
     context: Context,
     imageCapture: ImageCapture,
-    onImageSaved: (Uri) -> Unit,
-    onError: (String) -> Unit
+    onPhotoTaken: (File?) -> Unit
 ) {
-    // 4. GUARDADO AUTOMÁTICO EN GALERÍA (REQUIREMENT)
-    val outputOptions = UriUtils.createMediaStoreImageOptions(context)
+    // Crear archivo con timestamp
+    val photoFile = File(
+        context.getExternalFilesDir(null), // Almacenamiento privado de la app
+        SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.US)
+            .format(System.currentTimeMillis()) + ".jpg"
+    )
+
+    val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
 
     imageCapture.takePicture(
         outputOptions,
         ContextCompat.getMainExecutor(context),
         object : ImageCapture.OnImageSavedCallback {
             override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                val savedUri = output.savedUri
-                if (savedUri != null) {
-                    // 5. FEEDBACK VISUAL
-                    Toast.makeText(context, "Foto guardada en Galería", Toast.LENGTH_SHORT).show()
-                    onImageSaved(savedUri)
-                }
+                Log.d("CameraScreen", "Foto guardada: ${photoFile.absolutePath}")
+                onPhotoTaken(photoFile)
             }
 
-            override fun onError(exc: ImageCaptureException) {
-                onError(exc.message ?: "Error desconocido")
+            override fun onError(exception: ImageCaptureException) {
+                Log.e("CameraScreen", "Error al guardar foto", exception)
+                onPhotoTaken(null)
             }
         }
     )
 }
 
 // Extensión para obtener el proveedor de cámara de forma segura
-private suspend fun Context.getCameraProvider(): ProcessCameraProvider = suspendCoroutine { continuation ->
-    val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-    cameraProviderFuture.addListener({
-        continuation.resume(cameraProviderFuture.get())
-    }, ContextCompat.getMainExecutor(this))
-}
+private suspend fun Context.getCameraProvider(): ProcessCameraProvider =
+    suspendCoroutine { continuation ->
+        ProcessCameraProvider.getInstance(this).also { future ->
+            future.addListener({
+                continuation.resume(future.get())
+            }, ContextCompat.getMainExecutor(this))
+        }
+    }
